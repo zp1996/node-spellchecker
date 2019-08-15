@@ -402,12 +402,13 @@ uv_mutex_t &WindowsSpellchecker::GetGlobalTableMutex()
 }
 
 SpellcheckerImplementation* SpellcheckerFactory::CreateSpellchecker() {
-  WindowsSpellchecker* ret = new WindowsSpellchecker();
-  if (ret->IsSupported() && getenv("SPELLCHECKER_PREFER_HUNSPELL") == NULL) {
-    return ret;
-  }
-
-  delete ret;
+  // windows 默认用 hunspell
+  // WindowsSpellchecker* ret = new WindowsSpellchecker();
+  // if (ret->IsSupported() && getenv("SPELLCHECKER_PREFER_HUNSPELL") == NULL) {
+  //   return ret;
+  // }
+  //
+  // delete ret;
   return new HunspellSpellchecker();
 }
 
