@@ -1,21 +1,21 @@
 #ifndef WORKER_H
 #define WORKER_H
 
-#include "nan.h"
 #include "spellchecker.h"
 
 #include <vector>
+#include <napi.h>
 
 using namespace spellchecker;
-using namespace v8;
+using namespace Napi;
 
-class CheckSpellingWorker : public Nan::AsyncWorker {
+class CheckSpellingWorker : public AsyncWorker {
 public:
-  CheckSpellingWorker(std::vector<uint16_t> &&corpus, SpellcheckerImplementation* impl, Nan::Callback* callback);
+  CheckSpellingWorker(std::vector<uint16_t> &&corpus, SpellcheckerImplementation* impl, Function& callback);
   ~CheckSpellingWorker();
 
   void Execute();
-  void HandleOKCallback();
+  void OnOK();
 private:
   const std::vector<uint16_t> corpus;
   SpellcheckerImplementation* impl;

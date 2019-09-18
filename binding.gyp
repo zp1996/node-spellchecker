@@ -13,7 +13,11 @@
     ],
   },
   'target_defaults': {
-    'cflags_cc': ['-std=c++11'],
+    'cflags_cc': [
+      '-std=c++11',
+      '-fno-exceptions',
+      '-fno-rtti',
+    ],
     'conditions': [
       ['OS=="win"', {
         'msvs_disabled_warnings': [
@@ -24,6 +28,8 @@
       }],
       ['OS=="mac"', {
         'xcode_settings': {
+           'GCC_ENABLE_CPP_EXCEPTIONS': 'YES',
+           'GCC_ENABLE_CPP_RTTI': 'YES',
            'CLANG_CXX_LIBRARY': 'libc++',
            'CLANG_CXX_LANGUAGE_STANDARD': 'c++11'
         }
@@ -33,10 +39,13 @@
   'targets': [
     {
       'target_name': 'spellchecker',
-      'include_dirs': [ '<!(node -e "require(\'nan\')")' ],
+      'include_dirs': [ '<!@(node -p "require(\'node-addon-api\').include")' ],
       'sources': [
         'src/main.cc',
         'src/worker.cc'
+      ],
+      'defines': [
+        'NAPI_DISABLE_CPP_EXCEPTIONS'
       ],
       'conditions': [
         ['spellchecker_use_hunspell=="true"', {

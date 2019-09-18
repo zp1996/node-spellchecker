@@ -1,4 +1,4 @@
-{Spellchecker} = require '../lib/spellchecker'
+spellchecker = require '../lib/spellchecker'
 path = require 'path'
 
 enUS = 'A robot is a mechanical or virtual artificial agent, usually an electronic machine'
@@ -50,7 +50,7 @@ invalidLength4BytePair = [invalidLength4Byte, invalidLength4Byte].join " "
 describe 'SpellChecker', ->
   describe '.setDictionary', ->
     beforeEach ->
-      @fixture = new Spellchecker()
+      @fixture = spellchecker
 
     it 'returns true for en_US', ->
       @fixture.setDictionary('en_US', dictionaryDirectory)
@@ -69,7 +69,7 @@ describe 'SpellChecker', ->
 
   describe '.isMisspelled(word)', ->
     beforeEach ->
-      @fixture = new Spellchecker()
+      @fixture = spellchecker
       @fixture.setDictionary defaultLanguage, dictionaryDirectory
 
     it 'returns true if the word is mispelled', ->
@@ -165,7 +165,7 @@ describe 'SpellChecker', ->
 
   describe '.checkSpelling(string)', ->
     beforeEach ->
-      @fixture = new Spellchecker()
+      @fixture = spellchecker
       @fixture.setDictionary defaultLanguage, dictionaryDirectory
 
     it 'automatically detects languages on OS X', ->
@@ -193,7 +193,7 @@ describe 'SpellChecker', ->
         expect(@fixture.checkSpelling(deDE)).toEqual []
         expect(@fixture.checkSpelling(frFR)).not.toEqual []
 
-      @fixture = new Spellchecker()
+      @fixture = spellchecker
       if @fixture.setDictionary('fr_FR', dictionaryDirectory)
         expect(@fixture.checkSpelling(enUS)).not.toEqual []
         expect(@fixture.checkSpelling(deDE)).not.toEqual []
@@ -277,8 +277,8 @@ describe 'SpellChecker', ->
       fixture = @fixture
       expect(fixture.checkSpelling('')).toEqual []
       expect(-> fixture.checkSpelling()).toThrow('Bad argument')
-      expect(-> fixture.checkSpelling(null)).toThrow('Bad argument')
-      expect(-> fixture.checkSpelling({})).toThrow('Bad argument')
+      expect(-> fixture.checkSpelling(null)).toThrow('argument shoule be a string')
+      expect(-> fixture.checkSpelling({})).toThrow('argument shoule be a string')
 
     it 'returns values for a pair of 256 1-byte character strings', ->
       if process.platform is 'linux'
@@ -403,7 +403,7 @@ describe 'SpellChecker', ->
 
   describe '.checkSpellingAsync(string)', ->
     beforeEach ->
-      @fixture = new Spellchecker()
+      @fixture = spellchecker
       @fixture.setDictionary defaultLanguage, dictionaryDirectory
 
     it 'returns an array of character ranges of misspelled words', ->
@@ -422,12 +422,12 @@ describe 'SpellChecker', ->
 
     it 'handles invalid inputs', ->
       expect(=> @fixture.checkSpelling()).toThrow('Bad argument')
-      expect(=> @fixture.checkSpelling(null)).toThrow('Bad argument')
-      expect(=> @fixture.checkSpelling(47)).toThrow('Bad argument')
+      expect(=> @fixture.checkSpelling(null)).toThrow('argument shoule be a string')
+      expect(=> @fixture.checkSpelling(47)).toThrow('argument shoule be a string')
 
   describe '.getCorrectionsForMisspelling(word)', ->
     beforeEach ->
-      @fixture = new Spellchecker()
+      @fixture = spellchecker
       @fixture.setDictionary defaultLanguage, dictionaryDirectory
 
     it 'returns an array of possible corrections', ->
@@ -535,7 +535,7 @@ describe 'SpellChecker', ->
 
   describe '.add(word) and .remove(word)', ->
     beforeEach ->
-      @fixture = new Spellchecker()
+      @fixture = spellchecker
       @fixture.setDictionary defaultLanguage, dictionaryDirectory
 
     it 'allows words to be added and removed to the dictionary', ->
@@ -570,7 +570,7 @@ describe 'SpellChecker', ->
 
   describe '.getAvailableDictionaries()', ->
     beforeEach ->
-      @fixture = new Spellchecker()
+      @fixture = spellchecker
       @fixture.setDictionary defaultLanguage, dictionaryDirectory
 
     it 'returns an array of string dictionary names', ->

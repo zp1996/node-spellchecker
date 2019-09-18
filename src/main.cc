@@ -1,220 +1,192 @@
-#include <vector>
-#include <utility>
-#include "nan.h"
 #include "spellchecker.h"
 #include "worker.h"
 
-using Nan::ObjectWrap;
+#include <vector>
+#include <utility>
+#include <v8.h>
+#include <napi.h>
+
+using namespace Napi;
 using namespace spellchecker;
-using namespace v8;
 
-namespace {
+#define CHECKARG(num)                                                       \
+  if (info.Length() < num) {                                                \
+    Napi::TypeError::New(env, "Bad argument").ThrowAsJavaScriptException(); \
+    return env.Null();                                                      \
+  }                                                                         \
 
-class Spellchecker : public Nan::ObjectWrap {
-  SpellcheckerImplementation* impl;
+SpellcheckerImplementation* impl = SpellcheckerFactory::CreateSpellchecker();
 
-  static NAN_METHOD(New) {
-    Nan::HandleScope scope;
-    Spellchecker* that = new Spellchecker();
-    that->Wrap(info.This());
+Value IsMisspelled(const CallbackInfo& info) {
+  Env env = info.Env();
 
-    info.GetReturnValue().Set(info.This());
-  }
+  CHECKARG(1);
 
-  static NAN_METHOD(SetDictionary) {
-    Nan::HandleScope scope;
-
-    if (info.Length() < 1) {
-      return Nan::ThrowError("Bad argument");
-    }
-
-    Spellchecker* that = Nan::ObjectWrap::Unwrap<Spellchecker>(info.Holder());
-
-    std::string language = *Nan::Utf8String(info[0]);
-    std::string directory = ".";
-    if (info.Length() > 1) {
-      directory = *Nan::Utf8String(info[1]);
-    }
-
-    bool result = that->impl->SetDictionary(language, directory);
-    info.GetReturnValue().Set(Nan::New(result));
-  }
-
-  static NAN_METHOD(IsMisspelled) {
-    Nan::HandleScope scope;
-    if (info.Length() < 1) {
-      return Nan::ThrowError("Bad argument");
-    }
-
-    Spellchecker* that = Nan::ObjectWrap::Unwrap<Spellchecker>(info.Holder());
-    std::string word = *Nan::Utf8String(info[0]);
-
-    info.GetReturnValue().Set(Nan::New(that->impl->IsMisspelled(word)));
-  }
-
-  static NAN_METHOD(CheckSpelling) {
-    Nan::HandleScope scope;
-    if (info.Length() < 1) {
-      return Nan::ThrowError("Bad argument");
-    }
-
-    Local<String> string = Local<String>::Cast(info[0]);
-    if (!string->IsString()) {
-      return Nan::ThrowError("Bad argument");
-    }
-
-    Local<Array> result = Nan::New<Array>();
-    info.GetReturnValue().Set(result);
-
-    if (string->Length() == 0) {
-      return;
-    }
-
-    std::vector<uint16_t> text(string->Length() + 1);
-    string->Write(reinterpret_cast<uint16_t *>(text.data()));
-
-    Spellchecker* that = Nan::ObjectWrap::Unwrap<Spellchecker>(info.Holder());
-    std::vector<MisspelledRange> misspelled_ranges = that->impl->CheckSpelling(text.data(), text.size());
-
-    std::vector<MisspelledRange>::const_iterator iter = misspelled_ranges.begin();
-    for (; iter != misspelled_ranges.end(); ++iter) {
-      size_t index = iter - misspelled_ranges.begin();
-      uint32_t start = iter->start, end = iter->end;
-
-      Local<Object> misspelled_range = Nan::New<Object>();
-      misspelled_range->Set(Nan::New("start").ToLocalChecked(), Nan::New<Integer>(start));
-      misspelled_range->Set(Nan::New("end").ToLocalChecked(), Nan::New<Integer>(end));
-      result->Set(index, misspelled_range);
-    }
-  }
-
-  static NAN_METHOD(CheckSpellingAsync) {
-    Nan::HandleScope scope;
-    if (info.Length() < 2) {
-      return Nan::ThrowError("Bad argument");
-    }
-
-    Local<String> string = Local<String>::Cast(info[0]);
-    if (!string->IsString()) {
-      return Nan::ThrowError("Bad argument");
-    }
-
-    Nan::Callback *callback = new Nan::Callback(info[1].As<Function>());
-
-    std::vector<uint16_t> corpus(string->Length() + 1);
-    string->Write(reinterpret_cast<uint16_t *>(corpus.data()));
-
-    Spellchecker* that = Nan::ObjectWrap::Unwrap<Spellchecker>(info.Holder());
-
-    CheckSpellingWorker* worker = new CheckSpellingWorker(std::move(corpus), that->impl, callback);
-    Nan::AsyncQueueWorker(worker);
-  }
-
-  static NAN_METHOD(Add) {
-    Nan::HandleScope scope;
-    if (info.Length() < 1) {
-      return Nan::ThrowError("Bad argument");
-    }
-
-    Spellchecker* that = Nan::ObjectWrap::Unwrap<Spellchecker>(info.Holder());
-    std::string word = *Nan::Utf8String(info[0]);
-
-    that->impl->Add(word);
-    return;
-  }
-
-  static NAN_METHOD(Remove) {
-    Nan::HandleScope scope;
-    if (info.Length() < 1) {
-      return Nan::ThrowError("Bad argument");
-    }
-
-    Spellchecker* that = Nan::ObjectWrap::Unwrap<Spellchecker>(info.Holder());
-    std::string word = *Nan::Utf8String(info[0]);
-
-    that->impl->Remove(word);
-    return;
-  }
-
-
-  static NAN_METHOD(GetAvailableDictionaries) {
-    Nan::HandleScope scope;
-
-    Spellchecker* that = Nan::ObjectWrap::Unwrap<Spellchecker>(info.Holder());
-
-    std::string path = ".";
-    if (info.Length() > 0) {
-      std::string path = *Nan::Utf8String(info[0]);
-    }
-
-    std::vector<std::string> dictionaries =
-      that->impl->GetAvailableDictionaries(path);
-
-    Local<Array> result = Nan::New<Array>(dictionaries.size());
-    for (size_t i = 0; i < dictionaries.size(); ++i) {
-      const std::string& dict = dictionaries[i];
-      result->Set(i, Nan::New(dict.data(), dict.size()).ToLocalChecked());
-    }
-
-    info.GetReturnValue().Set(result);
-  }
-
-  static NAN_METHOD(GetCorrectionsForMisspelling) {
-    Nan::HandleScope scope;
-    if (info.Length() < 1) {
-      return Nan::ThrowError("Bad argument");
-    }
-
-    Spellchecker* that = Nan::ObjectWrap::Unwrap<Spellchecker>(info.Holder());
-
-    std::string word = *Nan::Utf8String(info[0]);
-    std::vector<std::string> corrections =
-      that->impl->GetCorrectionsForMisspelling(word);
-
-    Local<Array> result = Nan::New<Array>(corrections.size());
-    for (size_t i = 0; i < corrections.size(); ++i) {
-      const std::string& word = corrections[i];
-
-      Nan::MaybeLocal<String> val = Nan::New<String>(word.data(), word.size());
-      result->Set(i, val.ToLocalChecked());
-    }
-
-    info.GetReturnValue().Set(result);
-  }
-
-  Spellchecker() {
-    impl = SpellcheckerFactory::CreateSpellchecker();
-  }
-
-  // actual destructor
-  virtual ~Spellchecker() {
-    delete impl;
-  }
-
- public:
-  static void Init(Local<Object> exports) {
-    Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>(Spellchecker::New);
-
-    tpl->SetClassName(Nan::New<String>("Spellchecker").ToLocalChecked());
-    tpl->InstanceTemplate()->SetInternalFieldCount(1);
-
-    Nan::SetPrototypeMethod(tpl, "setDictionary", Spellchecker::SetDictionary);
-    Nan::SetPrototypeMethod(tpl, "getAvailableDictionaries", Spellchecker::GetAvailableDictionaries);
-    Nan::SetPrototypeMethod(tpl, "getCorrectionsForMisspelling", Spellchecker::GetCorrectionsForMisspelling);
-    Nan::SetPrototypeMethod(tpl, "isMisspelled", Spellchecker::IsMisspelled);
-    Nan::SetPrototypeMethod(tpl, "checkSpelling", Spellchecker::CheckSpelling);
-    Nan::SetPrototypeMethod(tpl, "checkSpellingAsync", Spellchecker::CheckSpellingAsync);
-    Nan::SetPrototypeMethod(tpl, "add", Spellchecker::Add);
-    Nan::SetPrototypeMethod(tpl, "remove", Spellchecker::Remove);
-
-    exports->Set(Nan::New("Spellchecker").ToLocalChecked(), tpl->GetFunction());
-  }
-};
-
-void Init(Local<Object> exports, Local<Object> module) {
-  Spellchecker::Init(exports);
+  return Boolean::New(env, impl->IsMisspelled(info[0].As<String>()));
 }
 
-}  // namespace
+Value SetDictionary(const CallbackInfo& info) {
+  Env env = info.Env();
 
-NODE_MODULE(spellchecker, Init)
+  CHECKARG(1);
+
+  std::string language = info[0].As<String>();
+  std::string directory = ".";
+  if (info.Length() > 1) {
+    directory = info[1].As<String>();
+  }
+
+  return Boolean::New(env, impl->SetDictionary(language, directory));
+}
+
+Value Add(const CallbackInfo& info) {
+  Env env = info.Env();
+
+  CHECKARG(1);
+
+  impl->Add(info[0].As<String>());
+  return env.Null();
+}
+
+Value BatchAdd(const CallbackInfo& info) {
+  Env env = info.Env();
+
+  CHECKARG(1);
+
+  Array words = info[0].As<Array>();
+  uint32_t length = words.Length();
+
+  for (uint32_t i = 0; i < length; i++) {
+    Value word = words[i];
+    impl->Add(word.As<String>());
+  }
+
+  return env.Null();
+}
+
+Value Remove(const CallbackInfo& info) {
+  Env env = info.Env();
+
+  CHECKARG(1);
+
+  impl->Remove(info[0].As<String>());
+  return env.Null();
+}
+
+Array ConvertStringVector(Env env, std::vector<std::string> &vec) {
+  size_t size = vec.size();
+  Array result = Array::New(env, size);
+  size_t i = 0;
+  for (const std::string& v: vec) {
+    result[i++] = String::New(env, v);
+  }
+
+  return result;
+}
+
+Value GetCorrectionsForMisspelling(const CallbackInfo& info) {
+  Env env = info.Env();
+
+  CHECKARG(1);
+
+  std::vector<std::string> corrections = impl->GetCorrectionsForMisspelling(
+    info[0].As<String>()
+  );
+
+  return ConvertStringVector(env, corrections);
+}
+
+Value GetAvailableDictionaries(const CallbackInfo& info) {
+  Env env = info.Env();
+
+  std::string path = ".";
+  if (info.Length() > 0) {
+    path = info[0].As<String>();
+  }
+
+  std::vector<std::string> dictionaries = impl->GetAvailableDictionaries(path);
+
+  return ConvertStringVector(env, dictionaries);
+}
+
+std::vector<uint16_t> ConvertToUint16(napi_value value) {
+  v8::Local<v8::String> local;
+  memcpy(&local, &value, sizeof(value));
+
+  std::vector<uint16_t> text(local->Length() + 1);
+  local->Write(reinterpret_cast<uint16_t *>(text.data()));
+
+  return text;
+}
+
+Value CheckSpelling(const CallbackInfo& info) {
+  Env env = info.Env();
+
+  CHECKARG(1);
+
+  if (!info[0].IsString()) {
+    TypeError::New(
+      env, "argument shoule be a string").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  std::vector<uint16_t> corpus = ConvertToUint16(info[0]);
+  std::vector<MisspelledRange> ranges = impl->CheckSpelling(corpus.data(), corpus.size());
+
+  Array result = Array::New(env, ranges.size());
+  size_t i = 0;
+  for (const MisspelledRange& range: ranges) {
+    Object obj = Object::New(env);
+
+    obj.Set(String::New(env, "start"), Number::New(env, range.start));
+    obj.Set(String::New(env, "end"), Number::New(env, range.end));
+
+    result[i++] = obj;
+  }
+
+  return result;
+}
+
+Value CheckSpellingAsync(const CallbackInfo& info) {
+  Env env = info.Env();
+
+  CHECKARG(2);
+
+  if (!info[0].IsString()) {
+    TypeError::New(
+      env, "argument shoule be a string").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  Function callback = info[1].As<Function>();
+
+  std::vector<uint16_t> corpus = ConvertToUint16(info[0]);
+  CheckSpellingWorker* worker = new CheckSpellingWorker(std::move(corpus), impl, callback);
+  worker->Queue();
+
+  return env.Null();
+}
+
+Object Init(Env env, Object exports) {
+  exports.Set(String::New(env, "isMisspelled"), Function::New(env, IsMisspelled));
+  exports.Set(String::New(env, "setDictionary"), Function::New(env, SetDictionary));
+  exports.Set(String::New(env, "add"), Function::New(env, Add));
+  exports.Set(String::New(env, "batchAdd"), Function::New(env, BatchAdd));
+  exports.Set(String::New(env, "remove"), Function::New(env, Remove));
+  exports.Set(
+    String::New(env, "getCorrectionsForMisspelling"),
+    Function::New(env, GetCorrectionsForMisspelling)
+  );
+  exports.Set(
+    String::New(env, "getAvailableDictionaries"),
+    Function::New(env, GetAvailableDictionaries)
+  );
+  exports.Set(String::New(env, "checkSpelling"), Function::New(env, CheckSpelling));
+  exports.Set(
+    String::New(env, "checkSpellingAsync"), Function::New(env, CheckSpellingAsync)
+  );
+
+  return exports;
+}
+
+NODE_API_MODULE(spellchecker, Init);
