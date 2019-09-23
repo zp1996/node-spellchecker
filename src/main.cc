@@ -109,12 +109,12 @@ Value GetAvailableDictionaries(const CallbackInfo& info) {
   return ConvertStringVector(env, dictionaries);
 }
 
-std::vector<uint16_t> ConvertToUint16(napi_value value) {
-  v8::Local<v8::String> local;
-  memcpy(&local, &value, sizeof(value));
-
-  std::vector<uint16_t> text(local->Length() + 1);
-  local->Write(reinterpret_cast<uint16_t *>(text.data()));
+inline std::vector<uint16_t> ConvertToUint16(Value value) {
+  std::u16string str = value.ToString().Utf16Value();
+  std::vector<uint16_t> text{
+    (uint16_t*) &*str.begin(),
+    (uint16_t*) &*str.end()
+  };
 
   return text;
 }
